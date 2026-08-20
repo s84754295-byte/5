@@ -130,12 +130,18 @@ async def build_admin_panel_text() -> str:
     async with aiosqlite.connect(DB_NAME) as db:
         cur = await db.execute("SELECT COUNT(*) FROM withdrawals WHERE status='pending'")
         pending_wd = (await cur.fetchone())[0]
+        cur = await db.execute("SELECT COUNT(*) FROM users")
+        users_count = (await cur.fetchone())[0]
+        cur = await db.execute("SELECT COUNT(*) FROM users WHERE registered_at >= datetime('now', '-1 day')")
+        new_24h = (await cur.fetchone())[0]
     return (
         tg(T_ADMIN, "🛡") + " <b>Админ-панель</b>\n"
         "━━━━━━━━━━━━━━━━\n"
-        f"┌ {tg(T_STOP, '⚡')} <b>Статус:</b> {status}\n"
-        f"├ {tg(T_QUEUE, '📋')} <b>Очередь:</b> {q_all}\n"
-        f"└ {tg(T_PAY, '💸')} <b>Выводы:</b> {pending_wd}"
+        f"┌ {tg(T_STOP, '🖥')} <b>Статус:</b> {status}\n"
+        f"├ {tg(T_QUEUE, '🕓')} <b>Очередь:</b> {q_all}\n"
+        f"├ {tg(T_PAY, '🛒')} <b>Выводы:</b> {pending_wd}\n"
+        f"├ {tg(T_USERS, '👥')} <b>Пользователей:</b> {users_count}\n"
+        f"└ {tg(T_NEW, '🧪')} <b>Новых за 24ч:</b> {new_24h}"
     )
 
 
@@ -183,12 +189,12 @@ async def queue_menu(call: CallbackQuery):
     c_reg = await count_queue(CAT_REG)
     c_new = await count_queue(CAT_NEW)
     text = (
-        tg(T_QUEUE, "🔍") + " <b>Очередь на проверку</b>\n"
+        tg(T_QUEUE, "🕓") + " <b>Очередь на проверку</b>\n"
         "━━━━━━━━━━━━━━━━\n"
         f"<b>MAX • Нерег:</b> {c_new}\n"
         f"<b>MAX • Рег:</b> {c_reg}\n"
         f"<b>Всего:</b> {c_reg + c_new}\n"
-        "Выберите категорию:"
+        "<b>Выберите категорию:</b>"
     )
     await show_menu(call, text, queue_menu_kb())
 
@@ -231,7 +237,7 @@ async def show_queue(call: CallbackQuery):
 
     if not rows:
         text = (
-            tg(T_QUEUE, "⭐") + f" <b>{title}</b>\n"
+            tg(T_QUEUE, "🕓") + f" <b>{title}</b>\n"
             "━━━━━━━━━━━━━━━━\n"
             "Очередь пуста."
         )
@@ -239,7 +245,7 @@ async def show_queue(call: CallbackQuery):
         return
 
     status_map = {"pending": "ожидает", "code_requested": "код запрошен", "code_submitted": "код получен"}
-    text = tg(T_QUEUE, "🔍") + f" <b>{title}</b>\n━━━━━━━━━━━━━━━━\n"
+    text = tg(T_QUEUE, "🕓") + f" <b>{title}</b>\n━━━━━━━━━━━━━━━━\n"
     for row in rows:
         num_id, number, user_id, username, status, code, created, cat = row
         st = status_map.get(status, status)
@@ -362,7 +368,7 @@ async def cancel_number(call: CallbackQuery, bot: Bot):
     try:
         await bot.send_message(
             user_id,
-            tg(T_ERR, "❌") + " <b>Заявка отклонена</b>\n━━━━━━━━━━━━━━━━\n"
+            tg(T_ERR, "🚫") + " <b>Заявка отклонена</b>\n━━━━━━━━━━━━━━━━\n"
             f"<b>Номер:</b> <code>{number}</code>",
             parse_mode="HTML",
         )
@@ -370,7 +376,7 @@ async def cancel_number(call: CallbackQuery, bot: Bot):
         pass
     await safe_edit(
         call,
-        tg(T_ERR, "❌") + " <b>Номер отклонён</b>\n━━━━━━━━━━━━━━━━\n"
+        tg(T_ERR, "🚫") + " <b>Номер отклонён</b>\n━━━━━━━━━━━━━━━━\n"
         f"<b>Номер:</b> <code>{number}</code>",
         back_to_admin_kb(),
     )
@@ -448,7 +454,7 @@ async def reject_number(call: CallbackQuery, bot: Bot):
     try:
         await bot.send_message(
             user_id,
-            tg(T_ERR, "❌") + " <b>Заявка отклонена</b>\n━━━━━━━━━━━━━━━━\n"
+            tg(T_ERR, "🚫") + " <b>Заявка отклонена</b>\n━━━━━━━━━━━━━━━━\n"
             f"<b>Номер:</b> <code>{number}</code>",
             parse_mode="HTML",
         )
@@ -456,7 +462,7 @@ async def reject_number(call: CallbackQuery, bot: Bot):
         pass
     await safe_edit(
         call,
-        tg(T_ERR, "❌") + " <b>Номер отклонён</b>\n━━━━━━━━━━━━━━━━\n"
+        tg(T_ERR, "🚫") + " <b>Номер отклонён</b>\n━━━━━━━━━━━━━━━━\n"
         f"<b>Номер:</b> <code>{number}</code>",
         back_to_admin_kb(),
     )
@@ -472,7 +478,7 @@ async def price_menu(call: CallbackQuery):
     text = (
         tg(T_PRICE, "🎨") + " <b>Управление ценами</b>\n"
         "━━━━━━━━━━━━━━━━\n"
-        "Выберите категорию:"
+        "<b>Выберите категорию:</b>"
     )
     await show_menu(call, text, price_menu_kb())
 
@@ -517,7 +523,7 @@ async def set_price_reg_process(msg: Message, state: FSMContext):
             raise ValueError
     except ValueError:
         await msg.answer(
-            tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\n"
+            tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\n"
             "Введите положительное число.",
             reply_markup=cancel_kb("admin_panel"), parse_mode="HTML"
         )
@@ -542,7 +548,7 @@ async def set_price_new_process(msg: Message, state: FSMContext):
             raise ValueError
     except ValueError:
         await msg.answer(
-            tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\n"
+            tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\n"
             "Введите положительное число.",
             reply_markup=cancel_kb("admin_panel"), parse_mode="HTML"
         )
@@ -563,7 +569,7 @@ async def set_min_withdraw_start(call: CallbackQuery, state: FSMContext):
     current = await get_setting("min_withdraw", "1.0")
     await safe_edit(
         call,
-        tg(T_PRICE, "🔔") + " <b>Минимум вывода</b>\n"
+        tg(T_PRICE, "🎨") + " <b>Минимум вывода</b>\n"
         "━━━━━━━━━━━━━━━━\n"
         "<b>Введите новую сумму:</b>",
         reply_markup=cancel_kb("price_menu")
@@ -581,7 +587,7 @@ async def set_min_withdraw_process(msg: Message, state: FSMContext):
             raise ValueError
     except ValueError:
         await msg.answer(
-            tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\n"
+            tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\n"
             "Введите положительное число.",
             reply_markup=cancel_kb("price_menu"), parse_mode="HTML"
         )
@@ -648,19 +654,19 @@ async def show_stats(call: CallbackQuery):
     text = (
         tg(T_STATS, "📊") + " <b>Информация</b>\n"
         "━━━━━━━━━━━━━━━━\n"
-        f"┌ {tg(T_STOP, '⚡')} <b>Сервис:</b> {'Включён' if bot_on else 'Выключен'}\n"
+        f"┌ {tg(T_STOP, '🖥')} <b>Сервис:</b> {'Включён' if bot_on else 'Выключен'}\n"
         f"├ {tg(T_OK, '✅')} <b>Успешных номеров:</b> {accepted}\n"
-        f"├ {tg(T_ERR, '❌')} <b>Не успешных:</b> {rejected}\n"
-        f"├ {tg(T_QUEUE, '⏳')} <b>В обработке:</b> {in_queue}\n"
-        f"├ {tg(T_SUBMIT, '📤')} <b>Всего сдано:</b> {total_numbers}\n"
-        f"├ {tg(T_PAY, '💵')} <b>Оборот (оценка):</b> ${earned_est:.2f}\n"
-        f"├ {tg(T_WITHDRAW, '💸')} <b>Выплачено:</b> ${paid_sum:.2f} ({paid_wd})\n"
-        f"├ {tg(T_CODE, '🕒')} <b>Ожидает выплаты:</b> ${pending_wd_sum:.2f} ({pending_wd})\n"
-        f"├ {tg(T_PROFILE, '💰')} <b>Балансы пользователей:</b> ${total_balance:.2f}\n"
+        f"├ {tg(T_ERR, '🚫')} <b>Не успешных:</b> {rejected}\n"
+        f"├ {tg(T_QUEUE, '🕓')} <b>В обработке:</b> {in_queue}\n"
+        f"├ {tg(T_SUBMIT, '📥')} <b>Всего сдано:</b> {total_numbers}\n"
+        f"├ {tg(T_PAY, '🛒')} <b>Оборот (оценка):</b> ${earned_est:.2f}\n"
+        f"├ {tg(T_WITHDRAW, '💼')} <b>Выплачено:</b> ${paid_sum:.2f} ({paid_wd})\n"
+        f"├ {tg(T_CODE, '📨')} <b>Ожидает выплаты:</b> ${pending_wd_sum:.2f} ({pending_wd})\n"
+        f"├ {tg(T_PROFILE, 'ℹ️')} <b>Балансы пользователей:</b> ${total_balance:.2f}\n"
         f"├ {tg(T_USERS, '👥')} <b>Пользователей всего:</b> {users_count}\n"
-        f"├ {tg(T_ACCESS, '🟢')} <b>Активных:</b> {active_users}\n"
-        f"├ {tg(T_NEW, '🆕')} <b>Новых за 24ч:</b> {new_24h}\n"
-        f"└ {tg(T_CAT, '⭐')} <b>Новых за 7 дней:</b> {new_7d}"
+        f"├ {tg(T_ACCESS, '🔓')} <b>Активных:</b> {active_users}\n"
+        f"├ {tg(T_NEW, '🧪')} <b>Новых за 24ч:</b> {new_24h}\n"
+        f"└ {tg(T_CAT, '⭐️')} <b>Новых за 7 дней:</b> {new_7d}"
     )
     await show_menu(call, text, back_to_admin_kb())
 
@@ -673,7 +679,8 @@ async def broadcast_start(call: CallbackQuery, state: FSMContext):
     await safe_edit(
         call,
         tg(T_BROADCAST, "📢") + " <b>Рассылка</b>\n━━━━━━━━━━━━━━━━\n"
-        "Введите текст (HTML).",
+        "Введите текст сообщения для рассылки всем пользователям.\n"
+        "<b>Поддерживается HTML-разметка</b>: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;, &lt;code&gt;моноширинный&lt;/code&gt;, &lt;a href=\"...\"&gt;ссылка&lt;/a&gt;.",
         reply_markup=cancel_kb("admin_panel"),
     )
     await state.set_state(AdminStates.waiting_broadcast)
@@ -757,7 +764,7 @@ async def withdrawals_admin(call: CallbackQuery):
         wid, uid, amount, created, uname = row
         try:
             await call.message.answer(
-                tg(T_PAY, "💰") + f" <b>Заявка #{wid}</b>\n"
+                tg(T_PAY, "🛒") + f" <b>Заявка #{wid}</b>\n"
                 f"<b>Username:</b> {('@'+uname) if uname else '@username'}\n"
                 f"<b>ID:</b> <code>{uid}</code>\n"
                 f"<b>Сумма:</b> <code>${amount:.2f}</code>\n"
@@ -825,11 +832,11 @@ async def reject_withdraw(call: CallbackQuery, bot: Bot):
         await db.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, user_id))
         await db.commit()
     try:
-        await bot.send_message(user_id, tg(T_ERR, "❌") + " <b>Вывод отклонён</b>\n━━━━━━━━━━━━━━━━\n" + f"<b>Сумма:</b> <code>${amount:.2f}</code>\nВозвращена на баланс.", parse_mode="HTML")
+        await bot.send_message(user_id, tg(T_ERR, "🚫") + " <b>Вывод отклонён</b>\n━━━━━━━━━━━━━━━━\n" + f"<b>Сумма:</b> <code>${amount:.2f}</code>\nВозвращена на баланс.", parse_mode="HTML")
     except Exception:
         pass
     try:
-        await call.message.edit_text(tg(T_ERR, "❌") + " <b>Отклонено</b>\n━━━━━━━━━━━━━━━━\n" + f"<code>${amount:.2f}</code> возвращено на баланс.", parse_mode="HTML")
+        await call.message.edit_text(tg(T_ERR, "🚫") + " <b>Отклонено</b>\n━━━━━━━━━━━━━━━━\n" + f"<code>${amount:.2f}</code> возвращено на баланс.", parse_mode="HTML")
     except Exception:
         pass
     await cb_answer(call)
@@ -841,7 +848,7 @@ async def access_panel(call: CallbackQuery, state: FSMContext):
     if not await require_admin(call):
         return
     await state.clear()
-    await show_menu(call, tg(T_ACCESS, "🔓") + " <b>Управление доступом</b>\n━━━━━━━━━━━━━━━━\nВыберите действие:", access_panel_kb())
+    await show_menu(call, tg(T_ACCESS, "🔓") + " <b>Управление доступом</b>\n━━━━━━━━━━━━━━━━\n<b>Выберите действие:</b>", access_panel_kb())
 
 
 
@@ -961,7 +968,7 @@ async def grant_access_process(msg: Message, state: FSMContext, bot: Bot):
     try:
         target_id = int(msg.text.strip())
     except ValueError:
-        await msg.answer(tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nОтправьте числовой Telegram ID.", reply_markup=cancel_kb("access_panel"), parse_mode="HTML")
+        await msg.answer(tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nОтправьте числовой Telegram ID.", reply_markup=cancel_kb("access_panel"), parse_mode="HTML")
         return
     await ensure_user_record(target_id, None)
     success = await set_approved(target_id, 1)
@@ -972,7 +979,7 @@ async def grant_access_process(msg: Message, state: FSMContext, bot: Bot):
         except Exception:
             pass
     else:
-        await msg.answer(tg(T_INFO, "ℹ️") + " <b>Не найден</b>\n━━━━━━━━━━━━━━━━\n" + f"<b>ID:</b> <code>{target_id}</code>\nПусть напишет /start.", reply_markup=access_panel_kb(), parse_mode="HTML")
+        await msg.answer(tg(T_INFO, "🔔") + " <b>Не найден</b>\n━━━━━━━━━━━━━━━━\n" + f"<b>ID:</b> <code>{target_id}</code>\nПусть напишет /start.", reply_markup=access_panel_kb(), parse_mode="HTML")
     await state.clear()
 
 
@@ -991,10 +998,10 @@ async def revoke_access_process(msg: Message, state: FSMContext, bot: Bot):
     try:
         target_id = int(msg.text.strip())
     except ValueError:
-        await msg.answer(tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nОтправьте числовой Telegram ID.", reply_markup=cancel_kb("access_panel"), parse_mode="HTML")
+        await msg.answer(tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nОтправьте числовой Telegram ID.", reply_markup=cancel_kb("access_panel"), parse_mode="HTML")
         return
     if await is_admin(target_id):
-        await msg.answer(tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nНельзя забрать доступ у администратора или владельца.", reply_markup=access_panel_kb(), parse_mode="HTML")
+        await msg.answer(tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nНельзя забрать доступ у администратора или владельца.", reply_markup=access_panel_kb(), parse_mode="HTML")
         await state.clear()
         return
     success = await set_approved(target_id, 0)
@@ -1005,7 +1012,7 @@ async def revoke_access_process(msg: Message, state: FSMContext, bot: Bot):
         except Exception:
             pass
     else:
-        await msg.answer(tg(T_INFO, "ℹ️") + " <b>Не найден</b>\n━━━━━━━━━━━━━━━━\n" + f"<b>ID:</b> <code>{target_id}</code>", reply_markup=access_panel_kb(), parse_mode="HTML")
+        await msg.answer(tg(T_INFO, "🔔") + " <b>Не найден</b>\n━━━━━━━━━━━━━━━━\n" + f"<b>ID:</b> <code>{target_id}</code>", reply_markup=access_panel_kb(), parse_mode="HTML")
     await state.clear()
 
 
@@ -1021,7 +1028,7 @@ async def list_no_access(call: CallbackQuery):
     if not rows:
         await safe_edit(call, tg(T_OK, "✅") + " <b>Без доступа</b>\n━━━━━━━━━━━━━━━━\nНет пользователей без доступа.", access_panel_kb())
         return
-    text = tg(T_LIST, "🧪") + " <b>Без доступа</b>\n━━━━━━━━━━━━━━━━\n"
+    text = tg(T_LIST, "🧑‍💻") + " <b>Без доступа</b>\n━━━━━━━━━━━━━━━━\n"
     for uid, uname in rows:
         text += f"Пользователь | <code>{uid}</code> — {('@'+uname) if uname else '@username'}\n"
     await safe_edit(call, text, access_panel_kb())
@@ -1039,7 +1046,7 @@ async def list_with_access(call: CallbackQuery):
     if not rows:
         await safe_edit(call, tg(T_OK, "✅") + " <b>С доступом</b>\n━━━━━━━━━━━━━━━━\nНет пользователей с доступом.", access_panel_kb())
         return
-    text = tg(T_LIST, "🧭") + " <b>С доступом</b>\n━━━━━━━━━━━━━━━━\n"
+    text = tg(T_LIST, "🧑‍💻") + " <b>С доступом</b>\n━━━━━━━━━━━━━━━━\n"
     for uid, uname, bal, total in rows:
         text += f"Пользователь | <code>{uid}</code> — {('@'+uname) if uname else '@username'}\n"
     await safe_edit(call, text, access_panel_kb())
@@ -1052,7 +1059,7 @@ async def manage_admins(call: CallbackQuery, state: FSMContext):
         await cb_answer(call)
         return
     await state.clear()
-    await safe_edit(call, tg(T_ADMIN, "👑") + " <b>Администраторы</b>\n━━━━━━━━━━━━━━━━\nТолько владелец может менять список.", manage_admins_kb())
+    await safe_edit(call, tg(T_ADMIN, "🛡") + " <b>Администраторы</b>\n━━━━━━━━━━━━━━━━\nТолько владелец может менять список.", manage_admins_kb())
 
 
 @router.callback_query(F.data == "list_admins")
@@ -1085,10 +1092,10 @@ async def add_admin_process(msg: Message, state: FSMContext):
     try:
         new_id = int(msg.text.strip())
     except ValueError:
-        await msg.answer(tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nОтправьте числовой Telegram ID.", reply_markup=cancel_kb("manage_admins"), parse_mode="HTML")
+        await msg.answer(tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nОтправьте числовой Telegram ID.", reply_markup=cancel_kb("manage_admins"), parse_mode="HTML")
         return
     if new_id == OWNER_ID:
-        await msg.answer(tg(T_INFO, "ℹ️") + " <b>Уже владелец</b>\n━━━━━━━━━━━━━━━━\nЭто уже владелец.", reply_markup=manage_admins_kb(), parse_mode="HTML")
+        await msg.answer(tg(T_INFO, "🔔") + " <b>Уже владелец</b>\n━━━━━━━━━━━━━━━━\nЭто уже владелец.", reply_markup=manage_admins_kb(), parse_mode="HTML")
         await state.clear()
         return
     await add_admin(new_id)
@@ -1104,7 +1111,7 @@ async def remove_admin_start(call: CallbackQuery, state: FSMContext):
     if not await is_owner(call.from_user.id):
         await cb_answer(call)
         return
-    await safe_edit(call, tg(T_ERR, "🤖") + " <b>Удалить админа</b>\n━━━━━━━━━━━━━━━━\nОтправьте Telegram ID.", reply_markup=cancel_kb("manage_admins"))
+    await safe_edit(call, tg(T_ERR, "🚫") + " <b>Удалить админа</b>\n━━━━━━━━━━━━━━━━\nОтправьте Telegram ID.", reply_markup=cancel_kb("manage_admins"))
     await state.set_state(AdminStates.waiting_remove_admin)
 
 
@@ -1115,10 +1122,10 @@ async def remove_admin_process(msg: Message, state: FSMContext):
     try:
         admin_id = int(msg.text.strip())
     except ValueError:
-        await msg.answer(tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nОтправьте числовой Telegram ID.", reply_markup=cancel_kb("manage_admins"), parse_mode="HTML")
+        await msg.answer(tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nОтправьте числовой Telegram ID.", reply_markup=cancel_kb("manage_admins"), parse_mode="HTML")
         return
     if admin_id == OWNER_ID:
-        await msg.answer(tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nВладельца удалить нельзя.", reply_markup=manage_admins_kb(), parse_mode="HTML")
+        await msg.answer(tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nВладельца удалить нельзя.", reply_markup=manage_admins_kb(), parse_mode="HTML")
         await state.clear()
         return
     await remove_admin(admin_id)
@@ -1142,7 +1149,7 @@ async def wd_panel(call: CallbackQuery):
         cur = await db.execute("SELECT COUNT(*) FROM withdrawals WHERE status='rejected'")
         n_rej = (await cur.fetchone())[0]
     text = (
-        tg(T_PAY, "💰") + " <b>Выплаты</b>\n"
+        tg(T_PAY, "🛒") + " <b>Выплаты</b>\n"
         "━━━━━━━━━━━━━━━━\n"
         f"<b>Активных:</b> {n_pending}\n"
         f"<b>Оплаченных:</b> {n_paid}\n"
@@ -1172,11 +1179,11 @@ async def wd_list(call: CallbackQuery):
         )
         rows = await cur.fetchall()
     if not rows:
-        await show_menu(call, tg(T_PAY, "💰") + f" <b>{title}</b>\n━━━━━━━━━━━━━━━━\nЗаявок нет.", wd_panel_kb())
+        await show_menu(call, tg(T_PAY, "🛒") + f" <b>{title}</b>\n━━━━━━━━━━━━━━━━\nЗаявок нет.", wd_panel_kb())
         return
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
-    text = tg(T_PAY, "💰") + f" <b>{title}</b>\n━━━━━━━━━━━━━━━━\n"
+    text = tg(T_PAY, "🛒") + f" <b>{title}</b>\n━━━━━━━━━━━━━━━━\n"
     for wid, uid, amount, uname in rows:
         uname_s = f"@{uname}" if uname else "@username"
         if st == "pending":
@@ -1213,7 +1220,7 @@ async def wd_open(call: CallbackQuery):
     uid, amount, status, uname = row
     uname_s = f"@{uname}" if uname else "@username"
     text = (
-        tg(T_PAY, "💰") + f" <b>Заявка #{wid}</b>\n"
+        tg(T_PAY, "🛒") + f" <b>Заявка #{wid}</b>\n"
         "━━━━━━━━━━━━━━━━\n"
         f"<b>От:</b> {uname_s}\n"
         f"<b>ID:</b> {uid}\n"
@@ -1272,7 +1279,7 @@ async def wd_reject(call: CallbackQuery, bot: Bot):
     try:
         await bot.send_message(
             uid,
-            tg(T_ERR, "❌") + " <b>Вывод отклонён</b>\n━━━━━━━━━━━━━━━━\n"
+            tg(T_ERR, "🚫") + " <b>Вывод отклонён</b>\n━━━━━━━━━━━━━━━━\n"
             f"${amount:.2f} возвращено на баланс.",
             parse_mode="HTML",
         )

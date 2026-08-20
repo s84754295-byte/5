@@ -19,7 +19,7 @@ from database import (
     get_setting, is_bot_enabled, is_admin, get_admins,
     ensure_user_record, get_price, count_queue, count_user_active_numbers, CAT_REG, CAT_NEW, CAT_LABEL, set_subscribed, slots_left, MAX_SLOTS
 )
-from emojis import tg, T_HOME, T_QUEUE, T_PROFILE, T_SUBMIT, T_MY, T_WITHDRAW, T_OK, T_ERR, T_NEW, T_CODE, T_PAY, T_ACCESS, T_STOP, T_CAT, T_WARN, T_SUPPORT, T_LIST
+from emojis import tg, T_HOME, T_QUEUE, T_QUEUE_ALL, T_QUEUE_OWN, T_PROFILE, T_SUBMIT, T_MY, T_WITHDRAW, T_OK, T_ERR, T_NEW, T_CODE, T_PAY, T_ACCESS, T_STOP, T_CAT, T_WARN, T_SUPPORT, T_LIST, T_HISTORY_ITEM, T_AMOUNT
 
 router = Router()
 
@@ -79,7 +79,7 @@ async def check_access(user_id: int, bot: Bot | None = None) -> tuple[bool, str 
 
 
 BOT_OFF_MSG = (
-    tg(T_STOP, "⏸") + " <b>Бот временно остановлен</b>\n"
+    tg(T_STOP, "🖥") + " <b>Бот временно остановлен</b>\n"
     "━━━━━━━━━━━━━━━━\n"
     "Приём номеров и заявки на вывод приостановлены администратором.\n"
     "Попробуйте позже, когда сервис снова будет включён."
@@ -158,10 +158,10 @@ async def build_main_menu_text(user_id: int) -> str:
     return (
         tg(T_HOME, "🏠") + " <b>Главное меню</b>\n"
         "━━━━━━━━━━━━━━━━\n"
-        f"┌ {tg(T_STOP, '⚡')} <b>Статус работы:</b> {status}\n"
-        f"├ {tg(T_PAY, '💵')} <b>Прайс:</b> Нерег - (${price_new:.2f}) | Рег - (${price_reg:.2f})\n"
-        f"├ {tg(T_QUEUE, '📋')} <b>Очередь номеров:</b> {queue}\n"
-        f"└ {tg(T_CAT, '🎟')} <b>Слотов:</b> {free}/10"
+        f"┌ {tg(T_STOP, '🖥')} <b>Статус работы:</b> {status}\n"
+        f"├ {tg(T_PAY, '🛒')} <b>Прайс:</b> Нерег - (${price_new:.2f}) | Рег - (${price_reg:.2f})\n"
+        f"├ {tg(T_QUEUE, '🕓')} <b>Очередь номеров:</b> {queue}\n"
+        f"└ {tg(T_CAT, '⭐️')} <b>Слотов:</b> {free}/10"
     )
 
 
@@ -270,8 +270,8 @@ async def public_queue_handler(call: CallbackQuery, bot: Bot):
     text = (
         tg(T_QUEUE, "🕓") + " <b>Очередь номеров</b>\n"
         "━━━━━━━━━━━━━━━━\n"
-        f"• Всего номеров в очереди: {total}\n"
-        f"• Ваших номеров в очереди: {own}"
+        f"{tg(T_QUEUE_ALL, '🧭')} • <b>Всего номеров в очереди:</b> {total}\n"
+        f"{tg(T_QUEUE_OWN, '⭐️')} • <b>Ваших номеров в очереди:</b> {own}"
     )
     await show_menu(call, text, back_to_main_kb())
 
@@ -289,17 +289,17 @@ async def profile_callback(call: CallbackQuery, bot: Bot):
         )
         data = await cur.fetchone()
         if not data:
-            await show_menu(call, tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nПользователь не найден.", back_to_main_kb())
+            await show_menu(call, tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nПользователь не найден.", back_to_main_kb())
             return
         uname = fmt_username(call.from_user.username)
         text = (
             tg(T_PROFILE, "ℹ️") + " <b>Личный кабинет</b>\n"
             "━━━━━━━━━━━━━━━━\n"
-            f"• {tg(T_LIST, '👤')} <b>Username:</b> {uname}\n"
-            f"• {tg(T_PAY, '💰')} <b>Баланс:</b> ${data[0]:.2f}\n\n"
-            f"• {tg(T_SUBMIT, '📤')} <b>Сдано:</b> {data[1]}\n"
+            f"• {tg(T_LIST, '🧑‍💻')} <b>Username:</b> {uname}\n"
+            f"• {tg(T_PAY, '🛒')} <b>Баланс:</b> ${data[0]:.2f}\n\n"
+            f"• {tg(T_SUBMIT, '📥')} <b>Сдано:</b> {data[1]}\n"
             f"• {tg(T_OK, '✅')} <b>Принято:</b> {data[2]}\n"
-            f"• {tg(T_ERR, '❌')} <b>Отклонено:</b> {data[3]}"
+            f"• {tg(T_ERR, '🚫')} <b>Отклонено:</b> {data[3]}"
         )
         await show_menu(call, text, back_to_main_kb())
 
@@ -329,7 +329,7 @@ async def submit_menu(call: CallbackQuery, state: FSMContext, bot: Bot):
     text = (
         tg(T_SUBMIT, "📥") + " <b>Сдача номера</b>\n"
         "━━━━━━━━━━━━━━━━\n"
-        "Выберите категорию:"
+        "<b>Выберите категорию:</b>"
     )
     await show_menu(call, text, submit_category_kb())
 
@@ -353,9 +353,8 @@ async def submit_category_chosen(call: CallbackQuery, state: FSMContext, bot: Bo
     label = CAT_LABEL[category]
     await state.update_data(category=category)
     text = (
-        tg(T_CAT, "📱") + f" <b>Сдача: {label}</b>\n"
+        tg(T_CAT, "⭐️") + f" <b>Сдача: {label}</b>\n"
         "━━━━━━━━━━━━━━━━\n"
-        "Введите номер телефона.\n"
         "<b>Формат:</b> <code>+7XXXXXXXXXX</code>\n"
         "<b>Пример:</b> <code>+79991234567</code>"
     )
@@ -378,7 +377,7 @@ async def submit_number_process(msg: Message, state: FSMContext, bot: Bot):
     number = msg.text.strip()
     if not validate_phone(number):
         await msg.answer(
-            tg(T_ERR, "❌") + " <b>Неверный формат</b>\n━━━━━━━━━━━━━━━━\n<b>Формат:</b> <code>+7XXXXXXXXXX</code>",
+            tg(T_ERR, "🚫") + " <b>Неверный формат</b>\n━━━━━━━━━━━━━━━━\n<b>Формат:</b> <code>+7XXXXXXXXXX</code>",
             reply_markup=cancel_kb("submit_menu", with_back=False),
             parse_mode="HTML"
         )
@@ -403,7 +402,7 @@ async def submit_number_process(msg: Message, state: FSMContext, bot: Bot):
             (number,)
         )
         if await cur.fetchone():
-            await msg.answer(tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nЭтот номер уже в очереди.", reply_markup=back_to_main_kb(), parse_mode="HTML")
+            await msg.answer(tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nЭтот номер уже в очереди.", reply_markup=back_to_main_kb(), parse_mode="HTML")
             await state.clear()
             return
         await db.execute(
@@ -420,7 +419,7 @@ async def submit_number_process(msg: Message, state: FSMContext, bot: Bot):
         try:
             await bot.send_message(
                 admin_id,
-                tg(T_NEW, "🧪") + " <b>Новый номер</b>\n"
+                tg(T_NEW, "🧪") + f" <b>Новая заявка №{number_id}</b>\n"
                 "━━━━━━━━━━━━━━━━\n"
                 f"<b>От пользователя:</b> {uname}\n"
                 f"<b>Категория:</b> {label}\n"
@@ -449,7 +448,7 @@ async def _accept_code(msg: Message, bot: Bot, number_id: int, number: str, code
         cur = await db.execute("SELECT status, category FROM numbers WHERE id=? AND user_id=?", (number_id, msg.from_user.id))
         row = await cur.fetchone()
         if not row or row[0] != "code_requested":
-            await msg.answer(tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nЗаявка уже обработана.", reply_markup=back_to_main_kb(), parse_mode="HTML")
+            await msg.answer(tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\nЗаявка уже обработана.", reply_markup=back_to_main_kb(), parse_mode="HTML")
             if state:
                 await state.clear()
             return False
@@ -462,7 +461,7 @@ async def _accept_code(msg: Message, bot: Bot, number_id: int, number: str, code
         try:
             await bot.send_message(
                 admin_id,
-                tg(T_CODE, "📨") + " <b>Код получен</b>\n"
+                tg(T_CODE, "📨") + f" <b>Новая заявка №{number_id}</b>\n"
                 "━━━━━━━━━━━━━━━━\n"
                 f"<b>От пользователя:</b> {uname}\n"
                 f"<b>Категория:</b> {cat_label}\n"
@@ -495,7 +494,7 @@ async def submit_code_process(msg: Message, state: FSMContext, bot: Bot):
     number = data.get("number", "")
     code = (msg.text or "").strip()
     if not number_id:
-        await msg.answer(tg(T_ERR, "❌") + " <b>Сессия истекла</b>\n━━━━━━━━━━━━━━━━\nСессия истекла.", reply_markup=back_to_main_kb(), parse_mode="HTML")
+        await msg.answer(tg(T_ERR, "🚫") + " <b>Сессия истекла</b>\n━━━━━━━━━━━━━━━━\nСессия истекла.", reply_markup=back_to_main_kb(), parse_mode="HTML")
         await state.clear()
         return
     # Обязателен ответ на сообщение с запросом кода
@@ -508,7 +507,7 @@ async def submit_code_process(msg: Message, state: FSMContext, bot: Bot):
         return
     if not _is_valid_six_digit_code(code):
         await msg.answer(
-            tg(T_ERR, "❌") + " <b>Неверный код</b>\n━━━━━━━━━━━━━━━━\n"
+            tg(T_ERR, "🚫") + " <b>Неверный код</b>\n━━━━━━━━━━━━━━━━\n"
             "Код должен состоять ровно из 6 цифр.",
             parse_mode="HTML",
         )
@@ -568,7 +567,7 @@ async def maybe_code_message(msg: Message, state: FSMContext, bot: Bot):
                 requested = requested.replace(tzinfo=timezone.utc)
             if datetime.now(timezone.utc) - requested > timedelta(minutes=2):
                 await msg.answer(
-                    tg(T_WARN, "⏱") + " <b>Время истекло</b>\n━━━━━━━━━━━━━━━━\n"
+                    tg(T_WARN, "⚠️") + " <b>Время истекло</b>\n━━━━━━━━━━━━━━━━\n"
                     "Время на ввод кода истекло.",
                     parse_mode="HTML",
                 )
@@ -578,7 +577,7 @@ async def maybe_code_message(msg: Message, state: FSMContext, bot: Bot):
 
     if not _is_valid_six_digit_code(text):
         await msg.answer(
-            tg(T_ERR, "❌") + " <b>Неверный код</b>\n━━━━━━━━━━━━━━━━\n"
+            tg(T_ERR, "🚫") + " <b>Неверный код</b>\n━━━━━━━━━━━━━━━━\n"
             "Код должен состоять ровно из 6 цифр.",
             parse_mode="HTML",
         )
@@ -595,7 +594,15 @@ async def my_numbers(call: CallbackQuery, bot: Bot):
         return
     async with aiosqlite.connect(DB_NAME) as db:
         cur = await db.execute(
-            "SELECT number, code, status, category FROM numbers WHERE user_id=? ORDER BY id DESC LIMIT 20",
+            """
+            SELECT number, code, status, category, seq FROM (
+                SELECT number, code, status, category, id,
+                       ROW_NUMBER() OVER (ORDER BY id ASC) AS seq
+                FROM numbers
+                WHERE user_id=?
+            )
+            ORDER BY id DESC LIMIT 20
+            """,
             (call.from_user.id,)
         )
         rows = await cur.fetchall()
@@ -615,10 +622,10 @@ async def my_numbers(call: CallbackQuery, bot: Bot):
         "pending": "В очереди",
     }
     text = tg(T_MY, "📚") + " <b>История номеров</b>\n━━━━━━━━━━━━━━━━\n"
-    for num, code, status, cat in rows:
+    for num, code, status, cat, seq in rows:
         st = status_map.get(status, status or "—")
         code_s = code if code else "—"
-        text += f"<code>{num}</code> — <code>{code_s}</code> — {st}\n"
+        text += f"{tg(T_HISTORY_ITEM, '📦')} №{seq} — <code>{num}</code> — <code>{code_s}</code> — {st}\n"
     await show_menu(call, text, back_to_main_kb())
 
 
@@ -639,13 +646,13 @@ async def withdraw_start(call: CallbackQuery, state: FSMContext, bot: Bot):
         data = await cur.fetchone()
         if not data or data[0] < min_w:
             bal = data[0] if data else 0
-            text = tg(T_ERR, "❌") + " <b>Недостаточно средств</b>\n━━━━━━━━━━━━━━━━\n" + f"{tg(T_PAY, '💰')} <b>Баланс:</b> ${bal:.2f}\n{tg(T_WARN, "📌")} <b>Минимум:</b> ${min_w:.2f}"
+            text = tg(T_ERR, "🚫") + " <b>Недостаточно средств</b>\n━━━━━━━━━━━━━━━━\n" + f"{tg(T_PAY, '🛒')} <b>Баланс:</b> ${bal:.2f}\n{tg(T_WARN, "⚠️")} <b>Минимум:</b> ${min_w:.2f}"
             await show_menu(call, text, back_to_main_kb())
             return
         text = (
-            tg(T_WITHDRAW, "🔔") + " <b>Заявка на вывод</b>\n"
+            tg(T_WITHDRAW, "💼") + " <b>Заявка на вывод</b>\n"
             "━━━━━━━━━━━━━━━━\n"
-            f"{tg(T_PAY, '💵')} <b>Введите сумму вывода:</b>"
+            f"{tg(T_AMOUNT, '👝')} <b>Введите сумму вывода:</b>"
         )
         await show_menu(call, text, cancel_kb())
         await state.set_state(WithdrawState.waiting_amount)
@@ -665,7 +672,7 @@ async def withdraw_amount(msg: Message, state: FSMContext, bot: Bot):
             raise ValueError
     except ValueError:
         await msg.answer(
-            tg(T_ERR, "❌") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\n"
+            tg(T_ERR, "🚫") + " <b>Ошибка</b>\n━━━━━━━━━━━━━━━━\n"
             f"<b>Минимум:</b> <code>${min_w:.2f}</code>",
             reply_markup=cancel_kb(), parse_mode="HTML"
         )
@@ -675,15 +682,15 @@ async def withdraw_amount(msg: Message, state: FSMContext, bot: Bot):
         balance = (await cur.fetchone())[0]
         if amount > balance:
             await msg.answer(
-                tg(T_ERR, "❌") + " <b>Недостаточно средств</b>\n━━━━━━━━━━━━━━━━\n"
-                f"{tg(T_PAY, '💰')} <b>Баланс:</b> ${balance:.2f}",
+                tg(T_ERR, "🚫") + " <b>Недостаточно средств</b>\n━━━━━━━━━━━━━━━━\n"
+                f"{tg(T_PAY, '🛒')} <b>Баланс:</b> ${balance:.2f}",
                 reply_markup=back_to_main_kb(), parse_mode="HTML"
             )
             await state.clear()
             return
     await state.update_data(amount=amount, balance=balance)
     await msg.answer(
-        tg(T_PAY, "💰") + " <b>Проверьте заявку</b>\n"
+        tg(T_PAY, "🛒") + " <b>Проверьте заявку</b>\n"
         "━━━━━━━━━━━━━━━━\n"
         f"<b>Сумма:</b> <code>${amount:.2f}</code>\n"
         f"<b>Баланс:</b> ${balance:.2f}\n"
@@ -718,8 +725,8 @@ async def withdraw_user_confirm(call: CallbackQuery, state: FSMContext, bot: Bot
         balance = row[0] if row else 0
         if amount > balance:
             await call.message.edit_text(
-                tg(T_ERR, "❌") + " <b>Недостаточно средств</b>\n━━━━━━━━━━━━━━━━\n"
-                f"{tg(T_PAY, '💰')} <b>Баланс:</b> ${balance:.2f}",
+                tg(T_ERR, "🚫") + " <b>Недостаточно средств</b>\n━━━━━━━━━━━━━━━━\n"
+                f"{tg(T_PAY, '🛒')} <b>Баланс:</b> ${balance:.2f}",
                 reply_markup=back_to_main_kb(), parse_mode="HTML"
             )
             await state.clear()
