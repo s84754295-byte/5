@@ -37,11 +37,10 @@ def submit_category_kb():
 
 def admin_panel_kb(is_owner: bool = False, bot_enabled: bool = True):
     b = InlineKeyboardBuilder()
-    b.button(text="Цены", callback_data="price_menu", icon_custom_emoji_id=B_MIN)
     b.button(text="Выплаты", callback_data="wd_panel", icon_custom_emoji_id=B_PAY)
-    b.button(text="Рассылка", callback_data="broadcast", icon_custom_emoji_id=B_CAST)
+    b.button(text="Цены", callback_data="price_menu", icon_custom_emoji_id=B_MIN)
     b.button(text="Инфо", callback_data="stats", icon_custom_emoji_id=B_STATS)
-    b.button(text="Юзеры", callback_data="users_list", icon_custom_emoji_id=B_USERS)
+    b.button(text="Рассылка", callback_data="broadcast", icon_custom_emoji_id=B_CAST)
     if bot_enabled:
         b.button(text="Стоп", callback_data="bot_stop", icon_custom_emoji_id=B_STOP)
     else:
@@ -50,10 +49,10 @@ def admin_panel_kb(is_owner: bool = False, bot_enabled: bool = True):
     if is_owner:
         b.button(text="Админы", callback_data="manage_admins", icon_custom_emoji_id=B_ADMINS)
         b.button(text="Главная", callback_data="main_menu", icon_custom_emoji_id=B_HOME)
-        b.adjust(1, 2, 2, 2, 1, 1)
+        b.adjust(2, 2, 2, 1, 1)
     else:
         b.button(text="Главная", callback_data="main_menu", icon_custom_emoji_id=B_HOME)
-        b.adjust(1, 2, 2, 2, 1)
+        b.adjust(2, 2, 2, 1)
     return b.as_markup()
 
 

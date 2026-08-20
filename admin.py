@@ -679,8 +679,7 @@ async def broadcast_start(call: CallbackQuery, state: FSMContext):
     await safe_edit(
         call,
         tg(T_BROADCAST, "📢") + " <b>Рассылка</b>\n━━━━━━━━━━━━━━━━\n"
-        "Введите текст сообщения для рассылки всем пользователям.\n"
-        "<b>Поддерживается HTML-разметка</b>: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;, &lt;code&gt;моноширинный&lt;/code&gt;, &lt;a href=\"...\"&gt;ссылка&lt;/a&gt;.",
+        "Введите текст сообщения для рассылки всем пользователям.",
         reply_markup=cancel_kb("admin_panel"),
     )
     await state.set_state(AdminStates.waiting_broadcast)
