@@ -108,7 +108,7 @@ def back_to_admin_kb():
 
 def number_request_kb(number_id: int, user_id: int):
     b = InlineKeyboardBuilder()
-    b.button(text="Запрос.", callback_data=f"reqcode_{number_id}_{user_id}", icon_custom_emoji_id=B_CODE)
+    b.button(text="Запр.", callback_data=f"reqcode_{number_id}_{user_id}", icon_custom_emoji_id=B_CODE)
     b.button(text="Откл.", callback_data=f"cancelnum_{number_id}_{user_id}", icon_custom_emoji_id=B_REJECT)
     b.adjust(2)
     return b.as_markup()
