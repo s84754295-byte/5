@@ -4,7 +4,8 @@ from emojis import *
 
 def main_menu(user_id: int, is_admin: bool = False):
     b = InlineKeyboardBuilder()
-    b.button(text="Сдать", callback_data="submit_menu", icon_custom_emoji_id=B_SUBMIT)
+    b.button(text="MAX", callback_data="submit_app_max", icon_custom_emoji_id=B_SUBMIT)
+    b.button(text="BK", callback_data="submit_app_bk", icon_custom_emoji_id=B_BK)
     b.button(text="Кабинет", callback_data="profile", icon_custom_emoji_id=B_PROFILE)
     b.button(text="Вывод", callback_data="withdraw", icon_custom_emoji_id=B_WITHDRAW)
     b.button(text="История", callback_data="my_numbers", icon_custom_emoji_id=B_MY)
@@ -12,9 +13,9 @@ def main_menu(user_id: int, is_admin: bool = False):
     b.button(text="Помощь", callback_data="support", icon_custom_emoji_id=B_SUPPORT)
     if is_admin:
         b.button(text="Панель", callback_data="admin_panel", icon_custom_emoji_id=B_ADMIN)
-        b.adjust(1, 2, 2, 1, 1)
+        b.adjust(2, 2, 2, 1, 1)
     else:
-        b.adjust(1, 2, 2, 1)
+        b.adjust(2, 2, 2, 1)
     return b.as_markup()
 
 
@@ -26,10 +27,11 @@ def support_kb():
     return b.as_markup()
 
 
-def submit_category_kb():
+def submit_category_kb(app: str = "max"):
+    label = "BK" if app == "bk" else "MAX"
     b = InlineKeyboardBuilder()
-    b.button(text="MAX • Нерег", callback_data="submit_cat_unregistered", icon_custom_emoji_id=B_CAT_NEW)
-    b.button(text="MAX • Рег", callback_data="submit_cat_registered", icon_custom_emoji_id=B_CAT_REG)
+    b.button(text=f"{label} • Нерег", callback_data=f"submit_cat_{app}_unregistered", icon_custom_emoji_id=B_CAT_NEW)
+    b.button(text=f"{label} • Рег", callback_data=f"submit_cat_{app}_registered", icon_custom_emoji_id=B_CAT_REG)
     b.button(text="Назад", callback_data="main_menu", icon_custom_emoji_id=B_BACK)
     b.adjust(2, 1)
     return b.as_markup()
@@ -59,21 +61,25 @@ def admin_panel_kb(is_owner: bool = False, bot_enabled: bool = True):
 
 def price_menu_kb():
     b = InlineKeyboardBuilder()
-    b.button(text="MAX • Нерег", callback_data="set_price_unregistered", icon_custom_emoji_id=B_PRICE_NEW)
-    b.button(text="MAX • Рег", callback_data="set_price_registered", icon_custom_emoji_id=B_PRICE_REG)
+    b.button(text="MAX • Нерег", callback_data="set_price_max_unregistered", icon_custom_emoji_id=B_PRICE_NEW)
+    b.button(text="MAX • Рег", callback_data="set_price_max_registered", icon_custom_emoji_id=B_PRICE_REG)
+    b.button(text="BK • Нерег", callback_data="set_price_bk_unregistered", icon_custom_emoji_id=B_BK_NEW)
+    b.button(text="BK • Рег", callback_data="set_price_bk_registered", icon_custom_emoji_id=B_BK_REG)
     b.button(text="Мин. вывод", callback_data="set_min_withdraw", icon_custom_emoji_id=B_MIN)
     b.button(text="Назад", callback_data="admin_panel", icon_custom_emoji_id=B_BACK)
-    b.adjust(2, 1, 1)
+    b.adjust(2, 2, 1, 1)
     return b.as_markup()
 
 
 def queue_menu_kb():
     b = InlineKeyboardBuilder()
-    b.button(text="MAX • Нерег", callback_data="queue_unregistered", icon_custom_emoji_id=B_CAT_NEW)
-    b.button(text="MAX • Рег", callback_data="queue_registered", icon_custom_emoji_id=B_CAT_REG)
+    b.button(text="MAX • Нерег", callback_data="queue_max_unregistered", icon_custom_emoji_id=B_CAT_NEW)
+    b.button(text="MAX • Рег", callback_data="queue_max_registered", icon_custom_emoji_id=B_CAT_REG)
+    b.button(text="BK • Нерег", callback_data="queue_bk_unregistered", icon_custom_emoji_id=B_BK_NEW)
+    b.button(text="BK • Рег", callback_data="queue_bk_registered", icon_custom_emoji_id=B_BK_REG)
     b.button(text="Вся очередь", callback_data="queue_all", icon_custom_emoji_id=B_AQUEUE)
     b.button(text="Назад", callback_data="admin_panel", icon_custom_emoji_id=B_BACK)
-    b.adjust(3, 1)
+    b.adjust(2, 2, 1, 1)
     return b.as_markup()
 
 

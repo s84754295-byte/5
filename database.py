@@ -1,12 +1,27 @@
 import aiosqlite
 from config import DB_NAME, OWNER_ID, ADMIN_IDS
 
-# category: 'registered' | 'unregistered'
-CAT_REG = "registered"
-CAT_NEW = "unregistered"
+# category: 'max_registered' | 'max_unregistered' | 'bk_registered' | 'bk_unregistered'
+CAT_MAX_REG = "max_registered"
+CAT_MAX_NEW = "max_unregistered"
+CAT_BK_REG = "bk_registered"
+CAT_BK_NEW = "bk_unregistered"
+
+# Обратная совместимость: раньше существовало только приложение MAX
+CAT_REG = CAT_MAX_REG
+CAT_NEW = CAT_MAX_NEW
+
 CAT_LABEL = {
-    CAT_REG: "MAX • Рег",
-    CAT_NEW: "MAX • Нерег",
+    CAT_MAX_REG: "MAX • Рег",
+    CAT_MAX_NEW: "MAX • Нерег",
+    CAT_BK_REG: "BK • Рег",
+    CAT_BK_NEW: "BK • Нерег",
+}
+
+# Приложения (категории верхнего уровня), доступные для сдачи номеров
+APPS = {
+    "max": {"label": "MAX", "reg": CAT_MAX_REG, "new": CAT_MAX_NEW},
+    "bk":  {"label": "BK",  "reg": CAT_BK_REG,  "new": CAT_BK_NEW},
 }
 
 
@@ -93,6 +108,32 @@ async def init_db():
                 (row[0],)
             )
 
+        # migrate legacy price_registered/price_unregistered -> price_max_* (до вставки дефолтов!)
+        cur = await db.execute("SELECT value FROM settings WHERE key='price_registered'")
+        row = await cur.fetchone()
+        if row:
+            await db.execute(
+                "INSERT OR IGNORE INTO settings (key, value) VALUES ('price_max_registered', ?)",
+                (row[0],)
+            )
+        cur = await db.execute("SELECT value FROM settings WHERE key='price_unregistered'")
+        row = await cur.fetchone()
+        if row:
+            await db.execute(
+                "INSERT OR IGNORE INTO settings (key, value) VALUES ('price_max_unregistered', ?)",
+                (row[0],)
+            )
+
+        # дефолты для новых ключей (сработает только если миграция выше не создала значение)
+        await db.execute("INSERT OR IGNORE INTO settings VALUES ('price_max_registered', '5.8')")
+        await db.execute("INSERT OR IGNORE INTO settings VALUES ('price_max_unregistered', '4.0')")
+        await db.execute("INSERT OR IGNORE INTO settings VALUES ('price_bk_registered', '5.8')")
+        await db.execute("INSERT OR IGNORE INTO settings VALUES ('price_bk_unregistered', '4.0')")
+
+        # migrate legacy категории заявок (когда существовал только MAX)
+        await db.execute("UPDATE numbers SET category='max_registered' WHERE category='registered'")
+        await db.execute("UPDATE numbers SET category='max_unregistered' WHERE category='unregistered' OR category IS NULL OR category=''")
+
         for admin_id in ADMIN_IDS:
             await db.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (admin_id,))
         await db.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (OWNER_ID,))
@@ -120,8 +161,9 @@ async def set_setting(key: str, value: str):
 
 
 async def get_price(category: str) -> float:
-    key = "price_registered" if category == CAT_REG else "price_unregistered"
-    return float(await get_setting(key, "5.8" if category == CAT_REG else "4.0"))
+    key = f"price_{category}"
+    default = "5.8" if category.endswith("_registered") or category == CAT_REG else "4.0"
+    return float(await get_setting(key, default))
 
 
 async def is_bot_enabled() -> bool:

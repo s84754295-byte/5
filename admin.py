@@ -21,7 +21,7 @@ from database import (
     get_admins, add_admin, remove_admin, is_bot_enabled,
     set_approved, ensure_user_record, get_price, clear_queue, count_queue,
     get_username,
-    CAT_REG, CAT_NEW, CAT_LABEL
+    CAT_REG, CAT_NEW, CAT_MAX_REG, CAT_MAX_NEW, CAT_BK_REG, CAT_BK_NEW, CAT_LABEL, APPS
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -30,8 +30,7 @@ router = Router()
 
 
 class AdminStates(StatesGroup):
-    waiting_price_registered = State()
-    waiting_price_unregistered = State()
+    waiting_price = State()
     waiting_min_withdraw = State()
     waiting_broadcast = State()
     waiting_add_admin = State()
@@ -186,32 +185,37 @@ async def bot_start(call: CallbackQuery):
 async def queue_menu(call: CallbackQuery):
     if not await require_admin(call):
         return
-    c_reg = await count_queue(CAT_REG)
-    c_new = await count_queue(CAT_NEW)
+    c_max_reg = await count_queue(CAT_MAX_REG)
+    c_max_new = await count_queue(CAT_MAX_NEW)
+    c_bk_reg = await count_queue(CAT_BK_REG)
+    c_bk_new = await count_queue(CAT_BK_NEW)
     text = (
         tg(T_QUEUE, "🕓") + " × <b>Очередь на проверку.</b>\n"
         "━━━━━━━━━━━━━━━━\n"
-        f"<b>MAX • Нерег:</b> <code>{c_new}</code>\n"
-        f"<b>MAX • Рег:</b> <code>{c_reg}</code>\n"
-        f"<b>Всего:</b> <code>{c_reg + c_new}</code>\n"
+        f"<b>MAX • Нерег:</b> <code>{c_max_new}</code>\n"
+        f"<b>MAX • Рег:</b> <code>{c_max_reg}</code>\n"
+        f"<b>BK • Нерег:</b> <code>{c_bk_new}</code>\n"
+        f"<b>BK • Рег:</b> <code>{c_bk_reg}</code>\n"
+        f"<b>Всего:</b> <code>{c_max_reg + c_max_new + c_bk_reg + c_bk_new}</code>\n"
         "<b>Выберите категорию:</b>"
     )
     await show_menu(call, text, queue_menu_kb())
 
 
-@router.callback_query(F.data.in_({"queue_registered", "queue_unregistered", "queue_all"}))
+QUEUE_CAT_MAP = {
+    "queue_max_registered": (CAT_MAX_REG, "MAX • Рег"),
+    "queue_max_unregistered": (CAT_MAX_NEW, "MAX • Нерег"),
+    "queue_bk_registered": (CAT_BK_REG, "BK • Рег"),
+    "queue_bk_unregistered": (CAT_BK_NEW, "BK • Нерег"),
+    "queue_all": (None, "Вся очередь"),
+}
+
+
+@router.callback_query(F.data.in_(set(QUEUE_CAT_MAP.keys())))
 async def show_queue(call: CallbackQuery):
     if not await require_admin(call):
         return
-    if call.data == "queue_registered":
-        category = CAT_REG
-        title = "MAX • Рег"
-    elif call.data == "queue_unregistered":
-        category = CAT_NEW
-        title = "MAX • Нерег"
-    else:
-        category = None
-        title = "Вся очередь"
+    category, title = QUEUE_CAT_MAP[call.data]
 
     async with aiosqlite.connect(DB_NAME) as db:
         if category:
@@ -483,40 +487,38 @@ async def price_menu(call: CallbackQuery):
     await show_menu(call, text, price_menu_kb())
 
 
-@router.callback_query(F.data == "set_price_registered")
-async def set_price_reg_start(call: CallbackQuery, state: FSMContext):
+PRICE_SET_MAP = {
+    "set_price_max_registered": CAT_MAX_REG,
+    "set_price_max_unregistered": CAT_MAX_NEW,
+    "set_price_bk_registered": CAT_BK_REG,
+    "set_price_bk_unregistered": CAT_BK_NEW,
+}
+
+
+@router.callback_query(F.data.in_(set(PRICE_SET_MAP.keys())))
+async def set_price_start(call: CallbackQuery, state: FSMContext):
     if not await require_admin(call):
         return
-    current = await get_setting("price_registered", "5.8")
+    category = PRICE_SET_MAP[call.data]
+    label = CAT_LABEL[category]
+    await state.update_data(price_category=category)
     await safe_edit(
         call,
-        tg(T_PRICE, "🎨") + " × <b>Цена: MAX • Рег.</b>\n"
+        tg(T_PRICE, "🎨") + f" × <b>Цена: {label}.</b>\n"
         "━━━━━━━━━━━━━━━━\n"
         "<b>Введите новую цену:</b>",
-        reply_markup=cancel_kb("admin_panel")
+        reply_markup=cancel_kb("price_menu")
     )
-    await state.set_state(AdminStates.waiting_price_registered)
+    await state.set_state(AdminStates.waiting_price)
 
 
-@router.callback_query(F.data == "set_price_unregistered")
-async def set_price_new_start(call: CallbackQuery, state: FSMContext):
-    if not await require_admin(call):
-        return
-    current = await get_setting("price_unregistered", "4.0")
-    await safe_edit(
-        call,
-        tg(T_PRICE, "🎨") + " × <b>Цена: MAX • Нерег.</b>\n"
-        "━━━━━━━━━━━━━━━━\n"
-        "<b>Введите новую цену:</b>",
-        reply_markup=cancel_kb("admin_panel")
-    )
-    await state.set_state(AdminStates.waiting_price_unregistered)
-
-
-@router.message(AdminStates.waiting_price_registered, F.text)
-async def set_price_reg_process(msg: Message, state: FSMContext):
+@router.message(AdminStates.waiting_price, F.text)
+async def set_price_process(msg: Message, state: FSMContext):
     if not await is_admin(msg.from_user.id):
         return
+    data = await state.get_data()
+    category = data.get("price_category", CAT_MAX_REG)
+    label = CAT_LABEL.get(category, category)
     try:
         price = float(msg.text.replace(",", ".").strip())
         if price <= 0:
@@ -525,38 +527,19 @@ async def set_price_reg_process(msg: Message, state: FSMContext):
         await msg.answer(
             tg(T_ERR, "🚫") + " × <b>Ошибка.</b>\n━━━━━━━━━━━━━━━━\n"
             "Введите положительное число.",
-            reply_markup=cancel_kb("admin_panel"), parse_mode="HTML"
+            reply_markup=cancel_kb("price_menu"), parse_mode="HTML"
         )
         return
-    await set_setting("price_registered", str(price))
-    await set_setting("price", str(price))
+    await set_setting(f"price_{category}", str(price))
+    if category == CAT_MAX_REG:
+        # держим устаревшие ключи в синхроне для обратной совместимости
+        await set_setting("price_registered", str(price))
+        await set_setting("price", str(price))
+    elif category == CAT_MAX_NEW:
+        await set_setting("price_unregistered", str(price))
     await msg.answer(
         tg(T_OK, "✅") + " × <b>Цена обновлена.</b>\n━━━━━━━━━━━━━━━━\n"
-        f"<b>MAX • Рег:</b> <code>${price:.2f}</code>",
-        reply_markup=back_to_admin_kb(), parse_mode="HTML"
-    )
-    await state.clear()
-
-
-@router.message(AdminStates.waiting_price_unregistered, F.text)
-async def set_price_new_process(msg: Message, state: FSMContext):
-    if not await is_admin(msg.from_user.id):
-        return
-    try:
-        price = float(msg.text.replace(",", ".").strip())
-        if price <= 0:
-            raise ValueError
-    except ValueError:
-        await msg.answer(
-            tg(T_ERR, "🚫") + " × <b>Ошибка.</b>\n━━━━━━━━━━━━━━━━\n"
-            "Введите положительное число.",
-            reply_markup=cancel_kb("admin_panel"), parse_mode="HTML"
-        )
-        return
-    await set_setting("price_unregistered", str(price))
-    await msg.answer(
-        tg(T_OK, "✅") + " × <b>Цена обновлена.</b>\n━━━━━━━━━━━━━━━━\n"
-        f"<b>MAX • Нерег:</b> <code>${price:.2f}</code>",
+        f"<b>{label}:</b> <code>${price:.2f}</code>",
         reply_markup=back_to_admin_kb(), parse_mode="HTML"
     )
     await state.clear()
@@ -640,15 +623,26 @@ async def show_stats(call: CallbackQuery):
         paid_wd = (await (await db.execute(
             "SELECT COUNT(*) FROM withdrawals WHERE status='paid'"
         )).fetchone())[0]
-        acc_reg = (await (await db.execute(
-            "SELECT COUNT(*) FROM numbers WHERE status='accepted' AND category='registered'"
+        acc_max_reg = (await (await db.execute(
+            "SELECT COUNT(*) FROM numbers WHERE status='accepted' AND category=?", (CAT_MAX_REG,)
         )).fetchone())[0]
-        acc_new = (await (await db.execute(
-            "SELECT COUNT(*) FROM numbers WHERE status='accepted' AND (category='unregistered' OR category IS NULL OR category='')"
+        acc_max_new = (await (await db.execute(
+            "SELECT COUNT(*) FROM numbers WHERE status='accepted' AND category=?", (CAT_MAX_NEW,)
         )).fetchone())[0]
-    price_reg = await get_price(CAT_REG)
-    price_new = await get_price(CAT_NEW)
-    earned_est = acc_reg * price_reg + acc_new * price_new
+        acc_bk_reg = (await (await db.execute(
+            "SELECT COUNT(*) FROM numbers WHERE status='accepted' AND category=?", (CAT_BK_REG,)
+        )).fetchone())[0]
+        acc_bk_new = (await (await db.execute(
+            "SELECT COUNT(*) FROM numbers WHERE status='accepted' AND category=?", (CAT_BK_NEW,)
+        )).fetchone())[0]
+    price_max_reg = await get_price(CAT_MAX_REG)
+    price_max_new = await get_price(CAT_MAX_NEW)
+    price_bk_reg = await get_price(CAT_BK_REG)
+    price_bk_new = await get_price(CAT_BK_NEW)
+    earned_est = (
+        acc_max_reg * price_max_reg + acc_max_new * price_max_new
+        + acc_bk_reg * price_bk_reg + acc_bk_new * price_bk_new
+    )
     bot_on = await is_bot_enabled()
     # unique emoji per line within this section
     text = (

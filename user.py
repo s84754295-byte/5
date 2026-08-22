@@ -17,7 +17,9 @@ from keyboards import (
 from utils import validate_phone, cb_answer
 from database import (
     get_setting, is_bot_enabled, is_admin, get_admins,
-    ensure_user_record, get_price, count_queue, count_user_active_numbers, CAT_REG, CAT_NEW, CAT_LABEL, set_subscribed, slots_left, MAX_SLOTS
+    ensure_user_record, get_price, count_queue, count_user_active_numbers,
+    CAT_REG, CAT_NEW, CAT_MAX_REG, CAT_MAX_NEW, CAT_BK_REG, CAT_BK_NEW, CAT_LABEL, APPS,
+    set_subscribed, slots_left, MAX_SLOTS
 )
 from emojis import tg, T_HOME, T_QUEUE, T_QUEUE_ALL, T_QUEUE_OWN, T_PROFILE, T_SUBMIT, T_MY, T_WITHDRAW, T_OK, T_ERR, T_NEW, T_CODE, T_PAY, T_ACCESS, T_STOP, T_CAT, T_WARN, T_SUPPORT, T_LIST, T_HISTORY_ITEM, T_AMOUNT
 
@@ -150,8 +152,10 @@ async def show_menu(target, text: str, reply_markup, parse_mode="HTML", with_pho
 async def build_main_menu_text(user_id: int) -> str:
     bot_on = await is_bot_enabled()
     status = "Включён" if bot_on else "Выключен"
-    price_new = await get_price(CAT_NEW)
-    price_reg = await get_price(CAT_REG)
+    price_max_new = await get_price(CAT_MAX_NEW)
+    price_max_reg = await get_price(CAT_MAX_REG)
+    price_bk_new = await get_price(CAT_BK_NEW)
+    price_bk_reg = await get_price(CAT_BK_REG)
     queue = await count_queue()
     used, mx = await slots_left(user_id)
     free = max(0, mx - used)
@@ -159,7 +163,8 @@ async def build_main_menu_text(user_id: int) -> str:
         tg(T_HOME, "🏠") + " × <b>Главное меню.</b>\n"
         "━━━━━━━━━━━━━━━━\n"
         f"┌ {tg(T_STOP, '🖥')} <b>Статус работы:</b> {status}\n"
-        f"├ {tg(T_PAY, '🛒')} <b>Прайс:</b> Нерег - (<code>${price_new:.2f}</code>) | Рег - (<code>${price_reg:.2f}</code>)\n"
+        f"├ {tg(T_PAY, '🛒')} <b>Прайс MAX:</b> Нерег - (<code>${price_max_new:.2f}</code>) | Рег - (<code>${price_max_reg:.2f}</code>)\n"
+        f"├ {tg(T_LIST, '🧑‍💻')} <b>Прайс BK:</b> Нерег - (<code>${price_bk_new:.2f}</code>) | Рег - (<code>${price_bk_reg:.2f}</code>)\n"
         f"├ {tg(T_QUEUE, '🕓')} <b>Очередь номеров:</b> <code>{queue}</code>\n"
         f"└ {tg(T_CAT, '⭐️')} <b>Слотов:</b> <code>{free}/10</code>"
     )
@@ -304,7 +309,7 @@ async def profile_callback(call: CallbackQuery, bot: Bot):
         await show_menu(call, text, back_to_main_kb())
 
 
-@router.callback_query(F.data == "submit_menu")
+@router.callback_query(F.data.in_({"submit_app_max", "submit_app_bk"}))
 async def submit_menu(call: CallbackQuery, state: FSMContext, bot: Bot):
     ok, err = await check_access(call.from_user.id, bot)
     if not ok:
@@ -325,16 +330,21 @@ async def submit_menu(call: CallbackQuery, state: FSMContext, bot: Bot):
             parse_mode="HTML",
         )
         return
+    app = "bk" if call.data == "submit_app_bk" else "max"
+    app_label = APPS[app]["label"]
     await state.clear()
     text = (
-        tg(T_SUBMIT, "📥") + " × <b>Сдача номера.</b>\n"
+        tg(T_SUBMIT, "📥") + f" × <b>Сдача номера: {app_label}.</b>\n"
         "━━━━━━━━━━━━━━━━\n"
         "<b>Выберите категорию:</b>"
     )
-    await show_menu(call, text, submit_category_kb())
+    await show_menu(call, text, submit_category_kb(app))
 
 
-@router.callback_query(F.data.in_({"submit_cat_registered", "submit_cat_unregistered"}))
+@router.callback_query(F.data.in_({
+    "submit_cat_max_registered", "submit_cat_max_unregistered",
+    "submit_cat_bk_registered", "submit_cat_bk_unregistered",
+}))
 async def submit_category_chosen(call: CallbackQuery, state: FSMContext, bot: Bot):
     ok, err = await check_access(call.from_user.id, bot)
     if not ok:
@@ -345,10 +355,14 @@ async def submit_category_chosen(call: CallbackQuery, state: FSMContext, bot: Bo
         await cb_answer(call)
         await call.message.answer(off_msg, parse_mode="HTML")
         return
-    if call.data == "submit_cat_registered":
-        category = CAT_REG
-    else:
-        category = CAT_NEW
+    category_map = {
+        "submit_cat_max_registered": CAT_MAX_REG,
+        "submit_cat_max_unregistered": CAT_MAX_NEW,
+        "submit_cat_bk_registered": CAT_BK_REG,
+        "submit_cat_bk_unregistered": CAT_BK_NEW,
+    }
+    category = category_map[call.data]
+    app = "bk" if category in (CAT_BK_REG, CAT_BK_NEW) else "max"
     price = await get_price(category)
     label = CAT_LABEL[category]
     await state.update_data(category=category)
@@ -358,7 +372,7 @@ async def submit_category_chosen(call: CallbackQuery, state: FSMContext, bot: Bo
         "<b>Формат:</b> <code>+7XXXXXXXXXX</code>\n"
         "<b>Пример:</b> <code>+79991234567</code>"
     )
-    await show_menu(call, text, cancel_kb("submit_menu", with_back=False))
+    await show_menu(call, text, cancel_kb(f"submit_app_{app}", with_back=False))
     await state.set_state(SubmitNumberState.waiting_number)
 
 
@@ -375,10 +389,13 @@ async def submit_number_process(msg: Message, state: FSMContext, bot: Bot):
         await state.clear()
         return
     number = msg.text.strip()
+    data = await state.get_data()
+    category = data.get("category", CAT_MAX_REG)
+    app = "bk" if category in (CAT_BK_REG, CAT_BK_NEW) else "max"
     if not validate_phone(number):
         await msg.answer(
             tg(T_ERR, "🚫") + " × <b>Неверный формат.</b>\n━━━━━━━━━━━━━━━━\n<b>Формат:</b> <code>+7XXXXXXXXXX</code>",
-            reply_markup=cancel_kb("submit_menu", with_back=False),
+            reply_markup=cancel_kb(f"submit_app_{app}", with_back=False),
             parse_mode="HTML"
         )
         return
@@ -393,8 +410,6 @@ async def submit_number_process(msg: Message, state: FSMContext, bot: Bot):
         )
         await state.clear()
         return
-    data = await state.get_data()
-    category = data.get("category", CAT_REG)
     label = CAT_LABEL.get(category, category)
     async with aiosqlite.connect(DB_NAME) as db:
         cur = await db.execute(

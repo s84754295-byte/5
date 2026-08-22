@@ -120,3 +120,6 @@ B_LIST       = E_FOLDER
 B_STATS      = E_CHART
 B_MIN        = E_BELL
 B_SUPPORT    = E_LINK
+B_BK         = E_GAME
+B_BK_REG     = E_GIFT
+B_BK_NEW     = E_HAMMER
